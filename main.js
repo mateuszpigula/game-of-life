@@ -1,6 +1,61 @@
-const CELL_SIZE = 3;
-const COLS = CELL_SIZE * 40*2;
-const ROWS = CELL_SIZE * 20*2;
+const CELL_SIZE = 5;
+const COLS = CELL_SIZE * 30;
+const ROWS = CELL_SIZE * 20;
+const DEAD = 0;
+const ALIVE = 1;
+const ADD_NEW = 2;
+const INTERVAL = 60;
+
+class Cell {
+    constructor() {
+        this.state = 'background';
+    }
+
+    getColor() {
+        return colors[this.state];
+    }
+
+    getState() {
+        return ['live', 'justLive'].includes(this.state) ? 1 : 0;
+    }
+
+    setState(state) {
+        switch (state) {
+            case DEAD:
+                if (!['dead', 'justDead'].includes(this.state)) {
+                    this.state = 'justDead';
+                } else {
+                    this.state = 'dead';
+                }
+                break;
+            case ALIVE:
+                if (!['live', 'justLive'].includes(this.state)) {
+                    this.state = 'justLive';
+                } else {
+                    this.state = 'live';
+                }
+                break;
+            case ADD_NEW:
+                this.state = 'justLive';
+                break;
+            default:
+                if (this.state === 'justLive') {
+                    this.state = 'live';
+                } else if (this.state === 'justDead') {
+                    this.state = 'dead';
+                }
+                break;
+        }
+    }
+}
+
+const colors = {
+    background: 'white',
+    dead: 'gray',
+    justDead: 'red',
+    live: 'black',
+    justLive: 'green'
+}
 
 const setup = () => {
     let grid = createGrid();
@@ -20,9 +75,12 @@ const setup = () => {
 }
 
 const createGrid = () => {
-    const grid = new Array(COLS);
+    const grid = [];
     for (let i = 0; i < ROWS; i++) {
-        grid[i] = new Array(COLS).fill(0);
+        grid[i] = [];
+        for (let j = 0; j < COLS; j++) {
+            grid[i][j] = new Cell();
+        }
     }
 
     return grid;
@@ -40,29 +98,36 @@ const countNeighbours = (grid, x, y) => {
     let count = 0;
     for (let i = -1; i < 2; i++) {
         for (let j = -1; j < 2; j++) {
-            count += grid[(x + i + ROWS) % ROWS][(y + j + COLS) % COLS];
+            count += grid[(x + i + ROWS) % ROWS][(y + j + COLS) % COLS].getState();
         }
     }
-    count -= grid[x][y];
+    count -= grid[x][y].getState();
 
     return count;
 }
 
 const draw = (grid, ctx) => {
     loop((i, j) => {
-        ctx.fillStyle = grid[i][j] ? 'white' : 'black';
+        ctx.fillStyle = grid[i][j].getColor();
         ctx.fillRect(j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE);
     });
+}
+
+const drawSpecific = (grid, ctx, i, j) => {
+    ctx.fillStyle = grid[i][j].getColor();
+    ctx.fillRect(j * CELL_SIZE, i * CELL_SIZE, CELL_SIZE, CELL_SIZE);
 }
 
 const nextGrid = (nextgrid) => {
     loop((i, j) => {
         let cell = nextgrid[i][j];
         const count = countNeighbours(nextgrid, i, j);
-        if (!cell && count === 3) {
-            nextgrid[i][j] = 1
-        } else if (cell && (count < 2 || count > 3)) {
-            nextgrid[i][j] = 0
+        if (!cell.getState() && count === 3) {
+            nextgrid[i][j].setState(ALIVE);
+        } else if (cell.getState() && (count < 2 || count > 3)) {
+            nextgrid[i][j].setState(DEAD);
+        } else {
+            nextgrid[i][j].setState(99);
         }
     })
 
@@ -92,15 +157,17 @@ const main = () => {
             if (pressedMouse === true) {
                 const y = event.clientY - rect.top;
                 const x = event.clientX - rect.left;
-                grid[Math.floor(y / CELL_SIZE)][Math.floor(x / CELL_SIZE)] = 1;
-                draw(grid, ctx);
+                const i = Math.floor(y / CELL_SIZE);
+                const j = Math.floor(x / CELL_SIZE);
+                grid[i][j].setState(ADD_NEW);
+                drawSpecific(grid, ctx, i, j);
             }
         }
     });
     canvas.addEventListener("mouseup", function (e) {
         pressedMouse = false;
         if (intervalRun) {
-            drawInterval = setInterval(start, 60)
+            drawInterval = setInterval(start, INTERVAL)
         }
     });
 
@@ -110,7 +177,7 @@ const main = () => {
     const buttonReset = document.querySelector('button.reset');
 
     buttonStart.addEventListener('click', () => {
-        drawInterval = setInterval(start, 60)
+        drawInterval = setInterval(start, INTERVAL)
     });
     buttonStop.addEventListener('click', () => {
         clearInterval(drawInterval);
